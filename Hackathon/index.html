@@ -190,6 +190,14 @@
         inset 0 0 80px rgba(99, 102, 241, 0.1);
       border-radius: 0;
       filter: brightness(1.1) contrast(1.05);
+      /* Ensure the canvas exactly matches the container bounds
+         so WebGLEarth's pointer->lat/lon calculations use correct geometry. */
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
     }
 
     /* Dodatkowa warstwa poświaty wokół globusa */
@@ -238,6 +246,11 @@
       z-index: 0;
       filter: blur(40px);
       animation: atmospherePulse 6s ease-in-out infinite;
+    }
+
+    /* Ensure the actual canvas is above decorative pseudo-elements so it receives pointer events */
+    #earth_div canvas {
+      z-index: 2;
     }
 
     @keyframes atmospherePulse {
@@ -1494,58 +1507,7 @@
     document.getElementById('weatherPanel').classList.remove('active');
   });
 
-  // click on globe -> place single marker, reverse geocode, fetch weather
-  earth.on('click', function(e) {
-    const lat = e.latlng.lat;
-    const lon = e.latlng.lng;
-    
-    // NATYCHMIASTOWE działania (synchroniczne):
-    // 1. Ustaw znacznik od razu
-    setMarker(lat, lon);
-    
-    // 2. Pokaż panel z podstawowymi danymi natychmiast i wskaźnikiem ładowania
-    document.getElementById('locationCoords').textContent = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`;
-    document.getElementById('locationName').innerHTML = 'Ładowanie lokalizacji<span class="mini-spinner"></span>';
-    document.getElementById('weatherDescription').innerHTML = 'Pobieranie danych<span class="mini-spinner"></span>';
-    document.getElementById('temperature').textContent = '--°';
-    document.getElementById('weatherIcon').textContent = '🌍';
-    
-    // Wyczyść szczegóły (pokaż że ładuje)
-    document.getElementById('feelsLike').textContent = '--°';
-    document.getElementById('humidity').textContent = '--%';
-    document.getElementById('windSpeed').textContent = '-- m/s';
-    document.getElementById('visibility').textContent = '-- km';
-    document.getElementById('pressure').textContent = '-- hPa';
-    document.getElementById('precipitation').textContent = '-- mm';
-    
-    // Wyczyść prognozę
-    const forecastList = document.getElementById('forecastList');
-    forecastList.innerHTML = '<div style="text-align:center;padding:20px;color:var(--star-blue);">Ładowanie prognozy<span class="mini-spinner"></span></div>';
-    
-    // Pokaż panel od razu
-    document.getElementById('weatherPanel').classList.add('active');
-    
-    // 3. Przesuń widok globusa do klikniętego miejsca
-    earth.setView([lat, lon], Math.max(earth.getZoom(), 4));
-    
-    // ASYNCHRONICZNE działania (w tle równolegle):
-    // Pobierz nazwę lokalizacji i pogodę równocześnie
-    Promise.all([
-      reverseGeocode(lat, lon),
-      fetchWeatherAndShow(lat, lon, null, false)  // false = nie pokazuj ponownie panelu
-    ]).then(([locationName]) => {
-      // Zaktualizuj nazwę lokalizacji gdy się pobierze
-      if (locationName) {
-        document.getElementById('locationName').textContent = locationName;
-      } else {
-        // Jeśli nie udało się pobrać nazwy, zostaw domyślną z API pogody
-        // (została już ustawiona w fetchWeatherAndShow)
-      }
-    }).catch(err => {
-      console.error('Błąd pobierania danych:', err);
-      document.getElementById('locationName').textContent = 'Nieznana lokalizacja';
-    });
-  });
+  // Click handling for the globe is implemented later in the file (consolidated)
 
   // ----- Search / geocode -----
   const input = document.getElementById('locationSearch');
@@ -1671,6 +1633,31 @@
       loadingScreen.classList.add('hidden');
     }
   }, 1500);
+
+  // Ensure WebGLEarth canvas dimensions match the container so click coordinates align.
+  function syncWebGLEarthCanvas() {
+    try {
+      const container = document.getElementById('earth_div');
+      if (!container) return;
+      const canvas = container.querySelector('canvas');
+      if (!canvas) return;
+      // Force canvas to match container size
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+      canvas.width = container.clientWidth;
+      canvas.height = container.clientHeight;
+
+      // If WebGLEarth exposes a resize or update method, call it
+      if (typeof WE !== 'undefined' && WE.view && typeof WE.view.resize === 'function') {
+        try { WE.view.resize(); } catch (e) {}
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  window.addEventListener('load', () => setTimeout(syncWebGLEarthCanvas, 300));
+  window.addEventListener('resize', () => setTimeout(syncWebGLEarthCanvas, 120));
 
   // ============================================
   // FAVORITES FUNCTIONALITY
@@ -1900,61 +1887,109 @@
     });
   }
 
-  // Update current location when clicking on globe (integrate with existing code)
-  const originalEarthClickHandler = earth.on;
-  earth.on('click', function(e) {
-    const lat = e.latlng.lat;
-    const lon = e.latlng.lng;
-    
-    // Store current location
-    currentLocation = {
-      name: `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`,
-      lat: lat,
-      lon: lon
-    };
-    
-    // Show add to favorites button
-    if (addToFavoritesBtn) {
-      addToFavoritesBtn.style.display = 'flex';
-      addToFavoritesBtn.innerHTML = '<i class="fa-regular fa-star"></i><span>Dodaj do ulubionych</span>';
-    }
-    
-    // Continue with original functionality...
-    setMarker(lat, lon);
-    
-    document.getElementById('locationCoords').textContent = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`;
-    document.getElementById('locationName').innerHTML = 'Ładowanie lokalizacji<span class="mini-spinner"></span>';
-    document.getElementById('weatherDescription').innerHTML = 'Pobieranie danych<span class="mini-spinner"></span>';
-    document.getElementById('temperature').textContent = '--°';
-    document.getElementById('weatherIcon').textContent = '🌍';
-    
-    document.getElementById('feelsLike').textContent = '--°';
-    document.getElementById('humidity').textContent = '--%';
-    document.getElementById('windSpeed').textContent = '-- m/s';
-    document.getElementById('visibility').textContent = '-- km';
-    document.getElementById('pressure').textContent = '-- hPa';
-    document.getElementById('precipitation').textContent = '-- mm';
-    
-    const forecastList = document.getElementById('forecastList');
-    forecastList.innerHTML = '<div style="text-align:center;padding:20px;color:var(--star-blue);">Ładowanie prognozy<span class="mini-spinner"></span></div>';
-    
-    document.getElementById('weatherPanel').classList.add('active');
-    
-    earth.setView([lat, lon], Math.max(earth.getZoom(), 4));
-    
-    Promise.all([
-      reverseGeocode(lat, lon),
-      fetchWeatherAndShow(lat, lon, null, false)
-    ]).then(([locationName]) => {
-      if (locationName) {
-        document.getElementById('locationName').textContent = locationName;
-        currentLocation.name = locationName;
-      }
-    }).catch(err => {
-      console.error('Błąd pobierania danych:', err);
-      document.getElementById('locationName').textContent = 'Nieznana lokalizacja';
+  // Update current location: use drag-aware handlers so LMB-drag rotates globe
+  // and double-click places a marker. This avoids placing a pin when the user
+  // is trying to rotate/drag the globe.
+  (function() {
+    let _mouseDown = false;
+    let _mouseDownPos = null;
+    let _isDragging = false;
+
+    earth.on('mousedown', function(e) {
+      try {
+        if (e && e.originalEvent && e.originalEvent.button === 0) {
+          _mouseDown = true;
+          _isDragging = false;
+          _mouseDownPos = { x: e.originalEvent.clientX, y: e.originalEvent.clientY };
+        }
+      } catch (err) {}
     });
-  });
+
+    earth.on('mousemove', function(e) {
+      try {
+        if (!_mouseDown || !_mouseDownPos || !e || !e.originalEvent) return;
+        const dx = (e.originalEvent.clientX - _mouseDownPos.x) || 0;
+        const dy = (e.originalEvent.clientY - _mouseDownPos.y) || 0;
+        if ((dx * dx + dy * dy) > 36) _isDragging = true; // > ~6px
+      } catch (err) {}
+    });
+
+    earth.on('mouseup', function(e) {
+      _mouseDown = false;
+      _mouseDownPos = null;
+      // reset drag flag shortly after mouseup to allow dblclick detection
+      setTimeout(() => { _isDragging = false; }, 50);
+    });
+
+    // Double-click places the marker and loads details
+    earth.on('dblclick', function(e) {
+      try {
+        if (_isDragging) return; // ignore if drag was happening
+      } catch (err) {}
+
+      const lat = e.latlng.lat;
+      const lon = e.latlng.lng;
+
+      // Store current location
+      currentLocation = {
+        name: `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`,
+        lat: lat,
+        lon: lon
+      };
+
+      // Show add to favorites button
+      if (addToFavoritesBtn) {
+        addToFavoritesBtn.style.display = 'flex';
+        addToFavoritesBtn.innerHTML = '<i class="fa-regular fa-star"></i><span>Dodaj do ulubionych</span>';
+      }
+
+      // Place marker immediately
+      setMarker(lat, lon);
+
+      // Update UI to loading state
+      try {
+        const coordsEl = document.getElementById('locationCoords');
+        if (coordsEl) coordsEl.textContent = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`;
+        const nameEl = document.getElementById('locationName');
+        if (nameEl) nameEl.innerHTML = 'Ładowanie lokalizacji<span class="mini-spinner"></span>';
+        const descEl = document.getElementById('weatherDescription');
+        if (descEl) descEl.innerHTML = 'Pobieranie danych<span class="mini-spinner"></span>';
+        const tempEl = document.getElementById('temperature'); if (tempEl) tempEl.textContent = '--°';
+        const iconEl = document.getElementById('weatherIcon'); if (iconEl) iconEl.textContent = '🌍';
+
+        document.getElementById('feelsLike').textContent = '--°';
+        document.getElementById('humidity').textContent = '--%';
+        document.getElementById('windSpeed').textContent = '-- m/s';
+        document.getElementById('visibility').textContent = '-- km';
+        document.getElementById('pressure').textContent = '-- hPa';
+        document.getElementById('precipitation').textContent = '-- mm';
+
+        const forecastList = document.getElementById('forecastList');
+        if (forecastList) forecastList.innerHTML = '<div style="text-align:center;padding:20px;color:var(--star-blue);">Ładowanie prognozy<span class="mini-spinner"></span></div>';
+
+        document.getElementById('weatherPanel').classList.add('active');
+      } catch (err) {}
+
+      // Center view
+      try { earth.setView([lat, lon], Math.max(earth.getZoom(), 4)); } catch (err) {}
+
+      // Fetch details and weather asynchronously
+      Promise.all([
+        reverseGeocode(lat, lon),
+        fetchWeatherAndShow(lat, lon, null, false)
+      ]).then(([locationName]) => {
+        if (locationName) {
+          const nameEl = document.getElementById('locationName');
+          if (nameEl) nameEl.textContent = locationName;
+          currentLocation.name = locationName;
+        }
+      }).catch(err => {
+        console.error('Błąd pobierania danych:', err);
+        const nameEl = document.getElementById('locationName');
+        if (nameEl) nameEl.textContent = 'Nieznana lokalizacja';
+      });
+    });
+  })();
 
 </script>
 
