@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TerraScope - Interaktywny Globus Pogodowy 3D</title>
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/globe.css">
+    <link rel="stylesheet" href="styles/calendar.css">
+    <link rel="stylesheet" href="styles/weather.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@400;500;700;900&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Leaflet CSS for maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        /* Make the weather layers control visually match the rest of the UI */
+        .map-layers-control {
+            background: linear-gradient(180deg, rgba(8,12,20,0.96), rgba(14,20,34,0.94));
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(99, 102, 241, 0.06);
+            border-radius: 12px;
+            padding: 10px 14px;
+            box-shadow: 0 10px 30px rgba(2,6,23,0.6);
+            color: #e6eef8;
+            max-width: 260px;
+        }
+
+        .map-layers-control .map-layers-header {
+            font-size: 0.82rem;
+            text-transform: uppercase;
+            color: #cfe8ff;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+            font-weight: 700;
+        }
+
+        .map-layers-control .map-layer-item {
+            margin: 4px 0;
+        }
+
+        .map-layers-control label {
+            cursor: pointer;
+            color: #dbeafe;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Kosmiczne tło -->
+        <div class="space-background">
+            <div class="stars"></div>
+            <div class="nebula-overlay"></div>
+        </div>
+
+        <!-- Loading Screen -->
+        <div class="loading-screen" id="loadingScreen">
+            <div class="loading-logo">TerraScope</div>
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Inicjalizacja aplikacji...</div>
+        </div>
+
+        <!-- Główna nawigacja -->
+        <header class="main-header">
+            <div class="logo-section">
+                <div class="logo-icon">
+                    <img src="pieslogo.png" alt="TerraScope Logo">
+                </div>
+                <div>
+                    <div class="logo-text">TerraScope</div>
+                    <div class="logo-subtitle">Interaktywny Globus Pogodowy 3D</div>
+                </div>
+            </div>
+
+            
+            <nav class="main-nav">
+                <a href="index.html" class="nav-link">
+                    <i class="fas fa-home"></i>
+                    <span>Globus 3D</span>
+                </a>
+                <a href="#" class="nav-link active" data-tab="globe">
+                    <i class="fas fa-map"></i>
+                    <span>Mapa i wydarzenia</span>
+                </a>
+            </nav>
+
+            <div class="search-container">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" class="search-input" id="locationSearch" placeholder="Szukaj lokalizacji..." />
+                <button class="favorites-toggle" id="favoritesToggle" title="Ulubione lokalizacje" aria-label="Ulubione">
+                    <i class="fa-regular fa-star"></i>
+                </button>
+                <div class="search-results" id="searchResults"></div>
+                <div class="favorites-panel" id="favoritesPanel" aria-hidden="true">
+                    <div class="favorites-header">
+                        <span><i class="fa-solid fa-star"></i> Ulubione</span>
+                        <button class="close-fav" id="closeFavorites" title="Zamknij">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="favorites-list" id="favoritesList">
+                        <!-- Filled dynamically -->
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Globe/Map Tab -->
+            <div id="globe-tab" class="tab-content active">
+                <div class="globe-container">
+                    <div id="globe-canvas"></div>
+                    <!-- Custom map layer controls (clouds, precipitation, temp, wind, pressure) -->
+                    <div class="map-layers-control" id="mapLayersControl" aria-hidden="false">
+                        <div class="map-layers-header">Warstwy pogodowe</div>
+                        <div class="map-layer-item">
+                            <label for="weather-clouds"><input type="checkbox" id="weather-clouds"> ☁️ Chmury</label>
+                        </div>
+                        <div class="map-layer-item">
+                            <label for="weather-rain"><input type="checkbox" id="weather-rain"> 🌧️ Opady</label>
+                        </div>
+                        <div class="map-layer-item">
+                            <label for="weather-temp"><input type="checkbox" id="weather-temp"> 🌡️ Temperatura</label>
+                        </div>
+                        <div class="map-layer-item">
+                            <label for="weather-wind"><input type="checkbox" id="weather-wind"> 💨 Wiatr</label>
+                        </div>
+                        <div class="map-layer-item">
+                            <label for="weather-pressure"><input type="checkbox" id="weather-pressure"> 📊 Ciśnienie</label>
+                        </div>
+                    </div>
+                    <div class="location-info" id="location-info">
+                        <div class="info-header">
+                            <div class="location-header-row">
+                                <div class="location-title">
+                                    <h3>Kliknij na mapę, aby zbadać lokalizację</h3>
+                                    <p class="coords">Kliknij dwukrotnie, aby uzyskać szczegółowe informacje pogodowe</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Calendar Tab -->
+            <div id="calendar-tab" class="tab-content">
+                <div class="calendar-container">
+                    <div class="calendar-header">
+                        <button id="prev-month" class="calendar-nav">
+                            <i class="fas fa-chevron-left"></i>
+                        </button>
+                        <h2 id="calendar-month-year"></h2>
+                        <button id="next-month" class="calendar-nav">
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                    <div class="calendar-grid" id="calendar-grid">
+                        <!-- Calendar will be populated here -->
+                    </div>
+                </div>
+                
+                <div class="events-sidebar">
+                    <h3>Nadchodzące wydarzenia</h3>
+                    <div class="events-list" id="events-list">
+                        <!-- Events will be populated here -->
+                    </div>
+                    <button id="add-event-btn" class="action-btn primary">
+                        <i class="fas fa-plus"></i>
+                        Dodaj wydarzenie
+                    </button>
+                </div>
+            </div>
+
+            <!-- Events Tab -->
+            <div id="events-tab" class="tab-content">
+                <div class="events-search">
+                    <div class="search-header">
+                        <h2>Odkrywanie wydarzeń z AI</h2>
+                        <p>Odkryj wydarzenia odbywające się w pobliżu</p>
+                    </div>
+                    <div class="search-form">
+                        <input type="text" id="event-location" placeholder="Wprowadź lokalizację lub wybierz z mapy">
+                        <select id="event-category">
+                            <option value="">Wszystkie kategorie</option>
+                            <option value="weather">Wydarzenia pogodowe</option>
+                            <option value="outdoor">Aktywności na świeżym powietrzu</option>
+                            <option value="festivals">Festiwale</option>
+                            <option value="sports">Sporty</option>
+                            <option value="cultural">Wydarzenia kulturowe</option>
+                        </select>
+                        <button id="search-events" class="action-btn primary">
+                            <i class="fas fa-search"></i>
+                            Search Events
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="discovered-events" id="discovered-events">
+                    <!-- AI-discovered events will be populated here -->
+                </div>
+            </div>
+        </main>
+
+        <!-- Modals -->
+        <div id="event-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="modal-title">Dodaj wydarzenie</h3>
+                    <button class="close-btn" id="close-modal">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <form id="event-form">
+                    <div class="form-group">
+                        <label for="event-name">Nazwa wydarzenia</label>
+                        <input type="text" id="event-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="event-date">Data</label>
+                        <input type="date" id="event-date" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="event-time">Czas</label>
+                        <input type="time" id="event-time">
+                    </div>
+                    <div class="form-group">
+                        <label for="event-location-input">Lokalizacja</label>
+                        <input type="text" id="event-location-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="event-description">Opis</label>
+                        <textarea id="event-description" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="event-reminder">
+                            Ustaw przypomnienie
+                        </label>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" id="cancel-event" class="action-btn secondary">Anuluj</button>
+                        <button type="submit" class="action-btn primary">Zapisz wydarzenie</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div id="loading-spinner" class="loading-spinner">
+            <div class="spinner"></div>
+            <p>Ładowanie...</p>
+        </div>
+
+        <!-- Notifications -->
+        <div id="notifications" class="notifications-container">
+            <!-- Notifications will be populated here -->
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <!-- Leaflet JS for maps -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Application scripts -->
+    <script src="js/notifications.js"></script>
+    <script src="js/database.js"></script>
+    <script src="js/weather.js"></script>
+    <script src="js/globe.js"></script>
+    <script src="js/calendar.js"></script>
+    <script src="js/events.js"></script>
+    <script src="js/main.js"></script>
+
+    <!-- Navigation Test Script -->
+    <script>
+        // Test navigation functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Testing navigation...');
+            
+            // Add click listeners to navigation buttons as backup
+            document.querySelectorAll('.nav-link').forEach(button => {
+                button.addEventListener('click', function(e) {
+                    const tabName = this.dataset.tab;
+                    if (tabName) {
+                        console.log('Navigation clicked:', tabName);
+                    } else {
+                        console.log('External link clicked:', this.href);
+                    }
+                });
+            });
+        });
+    </script>
+    <!-- Enforce single selection for weather layer checkboxes -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const container = document.getElementById('mapLayersControl');
+            if (!container) return;
+
+            const layerCheckboxes = Array.from(container.querySelectorAll('input[type="checkbox"]'));
+            if (layerCheckboxes.length === 0) return;
+
+            layerCheckboxes.forEach(cb => {
+                cb.addEventListener('change', function () {
+                    // If this checkbox was just checked, uncheck all others
+                    if (this.checked) {
+                        layerCheckboxes.forEach(other => {
+                            if (other !== this && other.checked) {
+                                other.checked = false;
+                                // dispatch change so any map-layer handlers react to the update
+                                other.dispatchEvent(new Event('change', { bubbles: true }));
+                            }
+                        });
+                    }
+                    // If it was unchecked, leave others as-is (allows none selected)
+                });
+            });
+        });
+    </script>
+
+    <!-- Weather Manager Initialization Script -->
+    <script>
+        // Ensure weather manager is properly initialized
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Initializing weather manager...');
+            
+            // Check if WeatherManager class exists
+            if (typeof WeatherManager === 'undefined') {
+                console.error('WeatherManager class not found - check if weather.js is loaded');
+                return;
+            }
+            
+            // Initialize weather manager if not already done
+            if (!window.weatherManager) {
+                try {
+                    window.weatherManager = new WeatherManager();
+                    console.log('Weather manager initialized successfully');
+                } catch (error) {
+                    console.error('Failed to initialize weather manager:', error);
+                }
+            }
+            
+            // Cross-reference with globe manager
+            if (window.globeManager && window.weatherManager) {
+                window.weatherManager.mapManager = window.globeManager;
+                console.log('Weather and map managers connected');
+            }
+            
+            // Debug information
+            setTimeout(() => {
+                console.log('Weather Manager Status:', {
+                    available: !!window.weatherManager,
+                    hasGetWeatherMethod: !!(window.weatherManager?.getWeatherByCoordinates),
+                    apiKey: window.weatherManager?.apiKey ? 'Set' : 'Not set'
+                });
+            }, 1000);
+        });
+        
+        // Fallback initialization function
+        window.initializeWeatherManager = function() {
+            if (!window.weatherManager && typeof WeatherManager !== 'undefined') {
+                window.weatherManager = new WeatherManager();
+                console.log('Weather manager initialized via fallback');
+                return true;
+            }
+            return false;
+        };
+    </script>
+    <!-- Header injection: allow maciek.html header to replace the default header when requested -->
+    <script>
+        (function() {
+            function getQueryParam(name) {
+                const params = new URLSearchParams(window.location.search);
+                return params.get(name);
+            }
+
+            const headerSource = getQueryParam('header');
+            if (headerSource === 'maciek') {
+                // Fetch maciek.html and extract its <style> and .top-nav
+                fetch('maciek.html').then(resp => {
+                    if (!resp.ok) throw new Error('Failed to fetch maciek.html');
+                    return resp.text();
+                }).then(text => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(text, 'text/html');
+
+                    // Extract first <style> block if present and append to head
+                    const styleEl = doc.querySelector('head style');
+                    if (styleEl) {
+                        const injected = document.createElement('style');
+                        injected.textContent = styleEl.textContent;
+                        // give it an id so we can remove later if needed
+                        injected.id = 'injected-maciek-style';
+                        document.head.appendChild(injected);
+                    }
+
+                    // Extract the navigation header from maciek and replace current one
+                    const macNav = doc.querySelector('.top-nav');
+                    if (macNav) {
+                        const currentNav = document.querySelector('.top-nav');
+                        if (currentNav) {
+                            currentNav.replaceWith(macNav.cloneNode(true));
+                        } else {
+                            // insert at top of body
+                            document.body.insertBefore(macNav.cloneNode(true), document.body.firstChild);
+                        }
+
+                        // Re-run any small bindings that index.html expects on nav buttons
+                        setTimeout(() => {
+                            document.querySelectorAll('.nav-btn').forEach(btn => {
+                                btn.addEventListener('click', function(e) {
+                                    const tabName = this.dataset.tab;
+                                    if (!tabName) return;
+                                    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+                                    this.classList.add('active');
+                                    document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+                                    const target = document.getElementById(tabName + '-tab');
+                                    if (target) target.classList.add('active');
+                                });
+                            });
+                        }, 120);
+                    }
+                }).catch(err => {
+                    console.warn('Header injection failed:', err);
+                });
+            }
+        })();
+    </script>
+</body>
+</html>

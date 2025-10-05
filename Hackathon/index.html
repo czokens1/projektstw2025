@@ -1,0 +1,1962 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TerraScope - WebGL Earth Globus</title>
+  <script src="https://www.webglearth.com/v2/api.js"></script>
+  <!-- Theme & fonts from strona.html -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --space-black: #0a0e27;
+      --space-dark: #1a1f3a;
+      --space-blue: #2e3856;
+      --nebula-purple: #6366f1;
+      --nebula-pink: #ec4899;
+      --nebula-cyan: #06b6d4;
+      --star-white: #f8fafc;
+      --star-blue: #93c5fd;
+      --space-gradient: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 50%, #2d1b69 100%);
+      --nebula-gradient: linear-gradient(135deg, #6366f1, #ec4899, #06b6d4);
+      --glow-blue: rgba(99, 102, 241, 0.4);
+      --glow-pink: rgba(236, 72, 153, 0.4);
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--space-gradient);
+      color: var(--star-white);
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* ============================================
+       LOADING SCREEN
+       ============================================ */
+    .loading-screen {
+      position: fixed;
+      inset: 0;
+      background: var(--space-gradient);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      transition: opacity 0.5s ease, visibility 0.5s ease;
+    }
+
+    .loading-screen.hidden {
+      opacity: 0;
+      visibility: hidden;
+    }
+
+    .loading-logo {
+      font-family: 'Orbitron', monospace;
+      font-size: 3rem;
+      font-weight: 900;
+      background: var(--nebula-gradient);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 2rem;
+      animation: logoGlow 2s ease-in-out infinite;
+    }
+
+    @keyframes logoGlow {
+      0%, 100% { filter: drop-shadow(0 0 20px var(--glow-blue)); }
+      50% { filter: drop-shadow(0 0 40px var(--glow-pink)); }
+    }
+
+    .loading-spinner {
+      width: 50px;
+      height: 50px;
+      border: 3px solid rgba(99, 102, 241, 0.2);
+      border-top-color: var(--nebula-purple);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 1rem;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+      color: var(--star-blue);
+      font-size: 1rem;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+
+    /* Mini spinner dla ładowania danych */
+    .mini-spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(99, 102, 241, 0.2);
+      border-top-color: var(--nebula-purple);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+
+    /* background layers to emulate strona.html look */
+    .space-background {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background: var(--space-gradient);
+      overflow: hidden;
+    }
+
+    .stars {
+      position: absolute;
+      inset: 0;
+      background-image: 
+        radial-gradient(1px 1px at 20px 30px, white, transparent),
+        radial-gradient(1px 1px at 60px 70px, white, transparent),
+        radial-gradient(1px 1px at 50px 160px, white, transparent),
+        radial-gradient(1px 1px at 130px 80px, white, transparent),
+        radial-gradient(1px 1px at 140px 180px, white, transparent);
+      background-size: 200px 200px;
+      background-repeat: repeat;
+      animation: twinkle 5s ease-in-out infinite;
+      opacity: 0.5;
+      mix-blend-mode: screen;
+    }
+
+    @keyframes twinkle {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 0.8; }
+    }
+
+    .nebula-overlay {
+      position: absolute;
+      inset: 0;
+      background: 
+        radial-gradient(ellipse at 20% 20%, rgba(99,102,241,0.1), transparent 30%),
+        radial-gradient(ellipse at 80% 80%, rgba(236,72,153,0.08), transparent 30%),
+        radial-gradient(ellipse at 50% 50%, rgba(6,182,212,0.06), transparent 60%);
+      pointer-events: none;
+      animation: nebulaPulse 10s ease-in-out infinite;
+      mix-blend-mode: overlay;
+    }
+
+    @keyframes nebulaPulse {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+
+    /* globe container fills available area below header */
+    #earth_div {
+      position: absolute;
+      top: 80px;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: 100%;
+      height: calc(100% - 80px);
+      z-index: 1;
+    }
+
+    /* Efekty wizualne dla globusa WebGL Earth - stylizacja jak w strona.html */
+    #earth_div canvas {
+      box-shadow: 
+        0 0 60px rgba(99, 102, 241, 0.3),
+        0 0 120px rgba(99, 102, 241, 0.2),
+        inset 0 0 80px rgba(99, 102, 241, 0.1);
+      border-radius: 0;
+      filter: brightness(1.1) contrast(1.05);
+    }
+
+    /* Dodatkowa warstwa poświaty wokół globusa */
+    #earth_div::before {
+      content: '';
+      position: absolute;
+      inset: -50px;
+      background: radial-gradient(
+        circle at center,
+        rgba(99, 102, 241, 0.15) 0%,
+        rgba(99, 102, 241, 0.08) 30%,
+        rgba(6, 182, 212, 0.05) 50%,
+        transparent 70%
+      );
+      pointer-events: none;
+      z-index: 0;
+      animation: atmosphereGlow 8s ease-in-out infinite;
+    }
+
+    @keyframes atmosphereGlow {
+      0%, 100% {
+        opacity: 0.6;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 1;
+        transform: scale(1.05);
+      }
+    }
+
+    /* Dodatkowa poświata dla mocniejszego efektu atmosfery */
+    #earth_div::after {
+      content: '';
+      position: absolute;
+      inset: 50%;
+      transform: translate(-50%, -50%);
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(
+        circle at center,
+        rgba(99, 102, 241, 0.2) 0%,
+        rgba(236, 72, 153, 0.1) 40%,
+        transparent 60%
+      );
+      pointer-events: none;
+      z-index: 0;
+      filter: blur(40px);
+      animation: atmospherePulse 6s ease-in-out infinite;
+    }
+
+    @keyframes atmospherePulse {
+      0%, 100% {
+        opacity: 0.5;
+      }
+      50% {
+        opacity: 0.8;
+      }
+    }
+
+    /* ============================================
+       PANEL INFORMACYJNY POGODY (WYSUWANY)
+       ============================================ */
+    
+    .weather-panel {
+      position: fixed;
+      right: -450px;
+      top: 80px;
+      width: 420px;
+      height: calc(100vh - 80px);
+      background: rgba(26, 31, 58, 0.95);
+      backdrop-filter: blur(30px);
+      border-left: 1px solid rgba(99, 102, 241, 0.3);
+      box-shadow: -10px 0 50px rgba(0, 0, 0, 0.5);
+      transition: right 0.6s ease;
+      z-index: 200;
+      overflow-y: auto;
+    }
+    
+    .weather-panel.active {
+      right: 0;
+    }
+    
+    .weather-panel-header {
+      padding: 2rem;
+      background: var(--nebula-gradient);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    
+    .close-panel {
+      position: absolute;
+      top: 1.5rem;
+      right: 1.5rem;
+      width: 35px;
+      height: 35px;
+      background: rgba(0, 0, 0, 0.3);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+    
+    .close-panel:hover {
+      background: rgba(239, 68, 68, 0.8);
+      transform: rotate(90deg);
+    }
+    
+    .location-title {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    
+    .location-coords {
+      font-size: 0.85rem;
+      opacity: 0.9;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .weather-panel-content {
+      padding: 2rem;
+    }
+    
+    .weather-section {
+      margin-bottom: 2rem;
+    }
+    
+    .section-title {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--star-blue);
+      margin-bottom: 1rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .current-weather {
+      background: rgba(99, 102, 241, 0.1);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 16px;
+      padding: 2rem;
+      text-align: center;
+    }
+    
+    .weather-icon-large {
+      font-size: 5rem;
+      margin: 1rem 0;
+      animation: float 3s ease-in-out infinite;
+    }
+    
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-15px); }
+    }
+    
+    .temperature-display {
+      font-size: 4rem;
+      font-weight: 700;
+      background: var(--nebula-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1;
+    }
+    
+    .weather-description {
+      font-size: 1.2rem;
+      color: var(--star-blue);
+      margin-top: 0.5rem;
+      font-weight: 500;
+    }
+    
+    .weather-details-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+    
+    .detail-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      border-radius: 12px;
+      padding: 1rem;
+      text-align: center;
+      transition: all 0.2s ease;
+    }
+    
+    .detail-card:hover {
+      background: rgba(99, 102, 241, 0.1);
+      border-color: var(--nebula-purple);
+      transform: translateY(-3px);
+      box-shadow: 0 5px 20px var(--glow-blue);
+    }
+    
+    .detail-icon {
+      font-size: 1.8rem;
+      margin-bottom: 0.5rem;
+      color: var(--nebula-cyan);
+    }
+    
+    .detail-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      color: var(--star-blue);
+      letter-spacing: 1px;
+      margin-bottom: 0.25rem;
+    }
+    
+    .detail-value {
+      font-size: 1.3rem;
+      font-weight: 700;
+    }
+    
+    .forecast-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    
+    .forecast-item {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      border-radius: 12px;
+      padding: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.2s ease;
+    }
+    
+    .forecast-item:hover {
+      background: rgba(99, 102, 241, 0.1);
+      border-color: var(--nebula-purple);
+      transform: translateX(5px);
+    }
+    
+    .forecast-day {
+      font-weight: 600;
+      min-width: 80px;
+    }
+    
+    .forecast-icon {
+      font-size: 1.5rem;
+      min-width: 40px;
+      text-align: center;
+    }
+    
+    .forecast-temps {
+      display: flex;
+      gap: 0.75rem;
+      font-weight: 600;
+    }
+    
+    .temp-high {
+      color: var(--nebula-pink);
+    }
+    
+    .temp-low {
+      color: var(--nebula-cyan);
+    }
+    /* Detailed weather panel styles (from strona.html) */
+    .weather-panel {
+      position: fixed;
+      right: -450px;
+      top: 80px;
+      width: 420px;
+      height: calc(100vh - 80px);
+      background: rgba(26, 31, 58, 0.95);
+      backdrop-filter: blur(30px);
+      border-left: 1px solid rgba(99, 102, 241, 0.3);
+      box-shadow: -10px 0 50px rgba(0, 0, 0, 0.5);
+      transition: right 0.6s ease;
+      z-index: 200;
+      overflow-y: auto;
+      padding-bottom: 2rem;
+    }
+
+    .weather-panel.active { right: 0; }
+
+    .weather-panel-header {
+      padding: 1.25rem 1.5rem;
+      background: var(--nebula-gradient);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      border-radius: 8px 8px 0 0;
+    }
+
+    .close-panel {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 36px;
+      height: 36px;
+      background: rgba(0,0,0,0.2);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .location-title { font-size: 1.25rem; font-weight: 700; display:flex; align-items:center; gap:0.6rem; }
+    .location-coords { font-size: 0.85rem; opacity: 0.9; color: var(--star-blue); }
+
+    .weather-panel-content { padding: 1.25rem 1.5rem; }
+    .current-weather { background: rgba(99,102,241,0.06); border: 1px solid rgba(99,102,241,0.12); border-radius: 12px; padding: 1rem; text-align:center; }
+    .weather-icon-large { font-size: 3.5rem; margin: 0.6rem 0; }
+    .temperature-display { font-size: 3rem; font-weight:700; background: var(--nebula-gradient); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+    .weather-description { font-size: 1rem; color: var(--star-blue); margin-top: 0.25rem; }
+
+    .weather-details-grid { display:grid; grid-template-columns: repeat(2,1fr); gap:0.8rem; margin-top:1rem; }
+    .detail-card { background: rgba(255,255,255,0.02); border:1px solid rgba(99,102,241,0.08); border-radius:10px; padding:0.8rem; text-align:center; }
+    .detail-icon { font-size:1.4rem; margin-bottom:0.3rem; }
+    .detail-label { font-size:0.75rem; color:var(--star-blue); }
+    .detail-value { font-weight:700; font-size:1.1rem; }
+
+    .section-title { font-size:0.85rem; text-transform:uppercase; letter-spacing:1.5px; color:var(--star-blue); margin-bottom:0.5rem; font-weight:600; }
+    .forecast-list { display:flex; flex-direction:column; gap:0.6rem; }
+    .forecast-item { display:flex; align-items:center; justify-content:space-between; background: rgba(255,255,255,0.02); border:1px solid rgba(99,102,241,0.06); padding:0.6rem 0.9rem; border-radius:8px; }
+    .forecast-day { font-weight:600; }
+
+    /* Header and search styles (copied from strona.html) */
+    .main-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 80px;
+      background: rgba(10, 14, 39, 0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2rem;
+      z-index: 1000;
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .logo-section { 
+      display: flex; 
+      align-items: center; 
+      gap: 1rem; 
+    }
+
+    .logo-icon { 
+      width: 50px; 
+      height: 50px; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      overflow: hidden; 
+      border-radius: 50%;
+      box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+    }
+
+    .logo-icon img { 
+      width: 100%; 
+      height: 100%; 
+      object-fit: cover; 
+      border-radius: 50%; 
+    }
+
+    .logo-text { 
+      font-family: 'Orbitron', monospace; 
+      font-size: 1.4rem; 
+      font-weight: 900; 
+      background: var(--nebula-gradient); 
+      -webkit-background-clip: text; 
+      background-clip: text; 
+      -webkit-text-fill-color: transparent; 
+    }
+
+    .logo-subtitle { 
+      font-size: 0.7rem; 
+      color: var(--star-blue); 
+      text-transform: uppercase; 
+      letter-spacing: 2px; 
+      margin-top: -5px; 
+    }
+
+    .main-nav { 
+      display: flex; 
+      gap: 1rem; 
+      align-items: center; 
+    }
+
+    /* View switcher (satellite / streets / terrain / dark) - moved to left, vertical */
+    .view-switch {
+      position: fixed;
+      left: 16px;
+      /* move closer to bottom rather than center */
+      bottom: 120px;
+      display: flex;
+      flex-direction: column; /* vertical stack */
+      gap: 0.6rem;
+      align-items: stretch;
+      z-index: 1200;
+      pointer-events: auto;
+    }
+
+    .view-switch button {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(99,102,241,0.12);
+      color: var(--star-white);
+      padding: 0.6rem 0.8rem;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      transition: all 0.18s ease;
+      width: 56px; /* compact square-ish buttons */
+      height: 56px;
+      justify-content: center;
+    }
+
+    .view-switch button:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 22px rgba(0,0,0,0.45);
+    }
+
+    .view-switch button.active {
+      background: linear-gradient(135deg, rgba(99,102,241,0.16), rgba(236,72,153,0.12));
+      color: white;
+      box-shadow: 0 10px 30px rgba(99,102,241,0.18);
+      border-color: rgba(99,102,241,0.3);
+    }
+
+    /* On small screens move the controls into the header area to avoid covering content */
+    @media (max-width: 760px) {
+      .view-switch {
+        position: absolute;
+        left: auto;
+        top: auto;
+        transform: none;
+        right: 16px;
+        bottom: 98px;
+        flex-direction: row;
+        gap: 0.5rem;
+        width: auto;
+      }
+
+      .view-switch button { width: auto; height: 44px; padding: 0.45rem 0.7rem; }
+    }
+
+    .nav-link { 
+      color: var(--star-white); 
+      text-decoration: none; 
+      font-weight: 500; 
+      padding: 0.6rem 1.2rem; 
+      border-radius: 8px;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      position: relative;
+    }
+
+    .nav-link::before {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 2px;
+      background: var(--nebula-gradient);
+      transition: width 0.3s ease;
+    }
+
+    .nav-link:hover {
+      background: rgba(99, 102, 241, 0.1);
+      color: var(--star-white);
+    }
+
+    .nav-link:hover::before {
+      width: 80%;
+    }
+
+    .nav-link.active {
+      background: rgba(99, 102, 241, 0.15);
+    }
+
+    .nav-link.active::before {
+      width: 80%;
+    }
+
+    .search-container {
+      position: relative;
+      width: 340px;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 0.7rem 3.5rem 0.7rem 3rem;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(99,102,241,0.2);
+      border-radius: 50px;
+      color: var(--star-white);
+      font-size: 0.9rem;
+      transition: all 0.3s ease;
+    }    .search-input:focus {
+      outline: none;
+      background: rgba(255,255,255,0.08);
+      border-color: var(--nebula-purple);
+      box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
+    }
+
+    .search-input::placeholder {
+      color: var(--star-blue);
+      opacity: 0.7;
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--star-blue);
+      pointer-events: none;
+    }
+
+    /* Przycisk ulubionych */
+    .favorites-toggle {
+      position: absolute;
+      right: 0.5rem;
+      top: 50%;
+      transform: translateY(-50%);
+      background: transparent;
+      border: none;
+      color: var(--star-blue);
+      cursor: pointer;
+      font-size: 1.1rem;
+      padding: 0.25rem;
+      border-radius: 8px;
+      transition: color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+    }
+
+    .favorites-toggle:hover {
+      color: var(--nebula-cyan);
+      background: rgba(255, 255, 255, 0.06);
+      transform: translateY(-50%) scale(1.1);
+    }
+
+    .favorites-toggle.active i {
+      color: var(--nebula-pink);
+    }
+
+    /* Panel ulubionych */
+    .favorites-panel {
+      position: absolute;
+      top: calc(100% + 1rem);
+      right: 0;
+      width: 360px;
+      max-height: 420px;
+      background: rgba(26, 31, 58, 0.95);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(20px);
+      overflow: hidden;
+      display: none;
+      z-index: 120;
+      animation: slideDownFav 0.25s ease;
+    }
+
+    @keyframes slideDownFav {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .favorites-panel.open {
+      display: block;
+    }
+
+    .favorites-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1rem;
+      background: rgba(99, 102, 241, 0.12);
+      border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+      color: var(--star-white);
+      font-weight: 600;
+    }
+
+    .favorites-header .close-fav {
+      background: transparent;
+      border: none;
+      color: var(--star-blue);
+      font-size: 1rem;
+      cursor: pointer;
+      padding: 0.25rem;
+      border-radius: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .favorites-header .close-fav:hover {
+      background: rgba(255,255,255,0.06);
+      color: var(--nebula-cyan);
+    }
+
+    .favorites-list {
+      max-height: 360px;
+      overflow-y: auto;
+    }
+
+    .favorite-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid rgba(99, 102, 241, 0.08);
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    .favorite-item:hover {
+      background: rgba(99, 102, 241, 0.08);
+    }
+
+    .favorite-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex: 1;
+    }
+
+    .favorite-name {
+      font-weight: 600;
+      color: var(--star-white);
+      font-size: 0.95rem;
+    }
+
+    .favorite-coords {
+      color: var(--star-blue);
+      font-size: 0.8rem;
+    }
+
+    .favorite-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .fav-btn {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      color: var(--star-white);
+      border-radius: 8px;
+      padding: 0.35rem 0.5rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 0.9rem;
+    }
+
+    .fav-btn:hover {
+      background: rgba(99, 102, 241, 0.2);
+      border-color: var(--nebula-purple);
+      transform: scale(1.05);
+    }
+
+    .favorites-empty {
+      padding: 1.5rem 1rem;
+      color: var(--star-blue);
+      text-align: center;
+      font-size: 0.9rem;
+    }
+
+    /* Przycisk dodania do ulubionych w panelu pogody */
+    .add-to-favorites-btn {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      margin-top: 1rem;
+      background: rgba(99, 102, 241, 0.1);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 12px;
+      color: var(--star-white);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+
+    .add-to-favorites-btn:hover {
+      background: rgba(99, 102, 241, 0.2);
+      border-color: var(--nebula-purple);
+      transform: translateY(-2px);
+      box-shadow: 0 5px 20px rgba(99, 102, 241, 0.3);
+    }
+
+    .add-to-favorites-btn i {
+      font-size: 1.1rem;
+    }    .search-results { 
+      position: absolute; 
+      top: calc(100% + 0.6rem); 
+      left: 0; 
+      right: 0; 
+      background: rgba(26,31,58,0.98); 
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(99,102,241,0.2); 
+      border-radius: 12px; 
+      max-height: 300px; 
+      overflow-y: auto; 
+      display: none; 
+      z-index: 1100;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    }
+
+    .search-results.active { 
+      display: block; 
+      animation: slideDown 0.3s ease;
+    }
+
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .search-result-item { 
+      padding: 0.9rem 1rem; 
+      cursor: pointer; 
+      border-bottom: 1px solid rgba(99,102,241,0.06); 
+      display: flex; 
+      gap: 0.75rem; 
+      align-items: center;
+      transition: background 0.2s ease;
+    }
+
+    .search-result-item:hover { 
+      background: rgba(99,102,241,0.12); 
+    }
+
+    .search-result-item:last-child {
+      border-bottom: none;
+    }
+
+    .result-icon { 
+      width: 36px; 
+      height: 36px; 
+      background: var(--nebula-gradient); 
+      border-radius: 8px; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center;
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+
+    .result-info h4 { 
+      margin: 0; 
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    .result-info p { 
+      margin: 0; 
+      margin-top: 2px;
+      font-size: 0.8rem; 
+      color: var(--star-blue); 
+    }
+
+    /* Scrollbar styling */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(99, 102, 241, 0.3);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(99, 102, 241, 0.5);
+    }
+  </style>
+</head>
+<body>
+
+<!-- Kosmiczne tło -->
+<div class="space-background">
+  <div class="stars"></div>
+  <div class="nebula-overlay"></div>
+</div>
+
+<!-- Loading Screen -->
+<div class="loading-screen" id="loadingScreen">
+  <div class="loading-logo">TerraScope</div>
+  <div class="loading-spinner"></div>
+  <div class="loading-text">Inicjalizacja globusa WebGL...</div>
+</div>
+
+<!-- Top header (spójna z innymi stronami) -->
+<header class="main-header">
+  <div class="logo-section">
+    <div class="logo-icon"><img src="pieslogo.png" alt="TerraScope Logo"/></div>
+    <div>
+      <div class="logo-text">TerraScope</div>
+      <div class="logo-subtitle">Interaktywny Globus Pogodowy 3D</div>
+    </div>
+  </div>
+
+  <nav class="main-nav">
+    <a href="strona.html" class="nav-link active">
+      <i class="fas fa-globe"></i>
+      <span>Globus 3D</span>
+    </a>
+    <a href="mapa.html" class="nav-link">
+      <i class="fas fa-map"></i>
+      <span>Mapa i wydarzenia</span>
+    </a>
+  </nav>
+
+
+  <div class="search-container">
+    <div class="search-icon"><i class="fas fa-search"></i></div>
+    <input id="locationSearch" class="search-input" placeholder="Szukaj lokalizacji..." />
+    <button class="favorites-toggle" id="favoritesToggle" title="Ulubione lokalizacje">
+      <i class="fa-regular fa-star"></i>
+    </button>
+    <div id="searchResults" class="search-results"></div>
+    <div class="favorites-panel" id="favoritesPanel">
+      <div class="favorites-header">
+        <span><i class="fa-solid fa-star"></i> Ulubione</span>
+        <button class="close-fav" id="closeFavorites" title="Zamknij">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="favorites-list" id="favoritesList">
+        <div class="favorites-empty">Brak ulubionych lokalizacji.</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- View switcher (moved out of header to allow fixed positioning) -->
+<div class="view-switch" id="viewSwitch">
+  <button data-view="satellite" id="viewSatellite" title="Satelita">
+    <i class="fas fa-satellite"></i>
+  </button>
+  <button data-view="streets" id="viewStreets" title="Ulice">
+    <i class="fas fa-road"></i>
+  </button>
+  <button data-view="dark" id="viewDark" title="Dark">
+    <i class="fas fa-moon"></i>
+  </button>
+</div>
+
+<!-- Globe container -->
+<div id="earth_div"></div>
+
+<!-- Weather panel (wysuwany z prawej strony) -->
+<div class="weather-panel" id="weatherPanel">
+  <div class="weather-panel-header">
+    <button class="close-panel" id="closePanel">
+      <i class="fas fa-times"></i>
+    </button>
+    <div class="location-title">
+      <i class="fas fa-map-marker-alt"></i>
+      <span id="locationName">Wybierz lokalizację</span>
+    </div>
+    <div class="location-coords">
+      <i class="fas fa-compass"></i>
+      <span id="locationCoords">--°, --°</span>
+    </div>
+  </div>
+  
+  <div class="weather-panel-content">
+    <!-- Aktualna pogoda -->
+    <div class="weather-section">
+      <div class="section-title">
+        <i class="fas fa-cloud-sun"></i>
+        Aktualna pogoda
+      </div>
+      <div class="current-weather">
+        <div class="weather-icon-large" id="weatherIcon">
+          ☀️
+        </div>
+        <div class="temperature-display" id="temperature">--°</div>
+        <div class="weather-description" id="weatherDescription">Kliknij na globus...</div>
+        
+        <div class="weather-details-grid">
+          <div class="detail-card">
+            <div class="detail-icon">
+              <i class="fas fa-temperature-high"></i>
+            </div>
+            <div class="detail-label">Odczuwalna</div>
+            <div class="detail-value" id="feelsLike">--°</div>
+          </div>
+          <div class="detail-card">
+            <div class="detail-icon">
+              <i class="fas fa-tint"></i>
+            </div>
+            <div class="detail-label">Wilgotność</div>
+            <div class="detail-value" id="humidity">--%</div>
+          </div>
+          <div class="detail-card">
+            <div class="detail-icon">
+              <i class="fas fa-wind"></i>
+            </div>
+            <div class="detail-label">Wiatr</div>
+            <div class="detail-value" id="windSpeed">-- m/s</div>
+          </div>
+          <div class="detail-card">
+            <div class="detail-icon">
+              <i class="fas fa-eye"></i>
+            </div>
+            <div class="detail-label">Widoczność</div>
+            <div class="detail-value" id="visibility">-- km</div>
+          </div>
+          <div class="detail-card">
+            <div class="detail-icon">
+              <i class="fas fa-compress-arrows-alt"></i>
+            </div>
+            <div class="detail-label">Ciśnienie</div>
+            <div class="detail-value" id="pressure">-- hPa</div>
+          </div>
+          <div class="detail-card">
+            <div class="detail-icon">
+              <i class="fas fa-cloud-rain"></i>
+            </div>
+            <div class="detail-label">Opady</div>
+            <div class="detail-value" id="precipitation">-- mm</div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Przycisk dodania do ulubionych -->
+      <button class="add-to-favorites-btn" id="addToFavoritesBtn" style="display: none;">
+        <i class="fa-regular fa-star"></i>
+        <span>Dodaj do ulubionych</span>
+      </button>
+    </div>
+    
+    <!-- Prognoza 7-dniowa -->
+    <div class="weather-section">
+      <div class="section-title">
+        <i class="fas fa-calendar-week"></i>
+        Prognoza na 7 dni
+      </div>
+      <div class="forecast-list" id="forecastList">
+        <!-- Dynamicznie generowane -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API_KEY = 'f34ace7e2ceaf413f870653d6cc2eef3';
+
+  // Initialize WebGLEarth
+  var earth = new WE.map('earth_div');
+  earth.setView([20, 0], 2);
+
+  // Base layers registry
+  const baseLayers = {
+    satellite: WE.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri World Imagery' }),
+    streets: WE.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }),
+    terrain: WE.tileLayer('https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg', { attribution: 'Map tiles by Stamen Design' }),
+    dark: WE.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', { attribution: 'CartoDB Dark' })
+  };
+
+  // Current base layer reference
+  let currentBaseLayer = null;
+
+  function switchBaseLayer(key) {
+    if (!baseLayers[key]) return;
+    try {
+      if (currentBaseLayer) {
+        try { earth.removeLayer(currentBaseLayer); } catch (e) { /* ignore */ }
+      }
+    } catch (e) {
+      console.warn('Error removing base layer:', e);
+    }
+    currentBaseLayer = baseLayers[key];
+    try { currentBaseLayer.addTo(earth); } catch (e) { console.error('Error adding base layer:', e); }
+
+    // Update active button styles
+    const buttons = document.querySelectorAll('#viewSwitch button');
+    buttons.forEach(b => b.classList.toggle('active', b.dataset.view === key));
+
+    // Persist choice
+    try { localStorage.setItem('terrascope_baseview', key); } catch (e) { /* ignore */ }
+  }
+
+  // Hook up view buttons (script is at end of body so DOM elements exist)
+  const viewSwitchElem = document.getElementById('viewSwitch');
+  if (viewSwitchElem) {
+    viewSwitchElem.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-view]');
+      if (!btn) return;
+      const key = btn.dataset.view;
+      switchBaseLayer(key);
+    });
+  }
+
+  // Read persisted choice or fallback to satellite
+  const savedView = (function(){ try { return localStorage.getItem('terrascope_baseview'); } catch (e) { return null; } })();
+  switchBaseLayer(savedView || 'satellite');
+
+  // single persistent marker: create once, then update position
+  let currentMarker = null;
+
+  function setMarker(lat, lon) {
+    // KROK 1: Usuń poprzedni marker jeśli istnieje
+    if (currentMarker) {
+      try {
+        earth.removeLayer(currentMarker);
+      } catch (e) {
+        console.warn('Nie można usunąć markera przez API:', e);
+      }
+      currentMarker = null;
+    }
+    
+    // KROK 2: Wyczyść WSZYSTKIE markery z DOM (agresywnie)
+    try {
+      // Znajdź kontener mapy
+      const mapContainer = document.getElementById('earth_div');
+      if (mapContainer) {
+        // Usuń wszystkie elementy .we-pm-icon (WebGL Earth marker icons)
+        const markerIcons = mapContainer.querySelectorAll('.we-pm-icon');
+        markerIcons.forEach(icon => {
+          try {
+            icon.parentNode.removeChild(icon);
+          } catch (e) {
+            // ignoruj
+          }
+        });
+        
+        // Usuń wszystkie elementy img które są markerami
+        const markerImages = mapContainer.querySelectorAll('img[src*="marker"]');
+        markerImages.forEach(img => {
+          try {
+            img.parentNode.removeChild(img);
+          } catch (e) {
+            // ignoruj
+          }
+        });
+        
+        // Usuń wszystkie div z klasą marker
+        const markerDivs = mapContainer.querySelectorAll('div[class*="marker"]');
+        markerDivs.forEach(div => {
+          try {
+            if (div.parentNode) {
+              div.parentNode.removeChild(div);
+            }
+          } catch (e) {
+            // ignoruj
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('Błąd czyszczenia DOM:', e);
+    }
+    
+    // KROK 3: Stwórz nowy marker
+    try {
+      currentMarker = WE.marker([lat, lon]);
+      currentMarker.addTo(earth);
+    } catch (e) {
+      console.error('Błąd tworzenia markera:', e);
+    }
+  }
+
+  // local suggestions (same as strona.html)
+  const majorCities = [
+    { name: 'Warszawa, Polska', lat: 52.2297, lon: 21.0122 },
+    { name: 'Londyn, Wielka Brytania', lat: 51.5074, lon: -0.1278 },
+    { name: 'Paryż, Francja', lat: 48.8566, lon: 2.3522 },
+    { name: 'Berlin, Niemcy', lat: 52.52, lon: 13.405 },
+    { name: 'Nowy Jork, USA', lat: 40.7128, lon: -74.0060 },
+    { name: 'Tokio, Japonia', lat: 35.6762, lon: 139.6503 },
+    { name: 'Sydney, Australia', lat: -33.8688, lon: 151.2093 },
+    { name: 'Dubaj, ZEA', lat: 25.2048, lon: 55.2708 },
+    { name: 'Moskwa, Rosja', lat: 55.7558, lon: 37.6173 },
+    { name: 'Rio de Janeiro, Brazylia', lat: -22.9068, lon: -43.1729 }
+  ];
+
+  async function reverseGeocode(lat, lon) {
+    try {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&accept-language=pl`;
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const j = await res.json();
+      return j.display_name || null;
+    } catch (err) { return null; }
+  }
+
+  // Funkcja do pobierania ikony pogody
+  function getWeatherEmoji(condition) {
+    const icons = {
+      'Clear': '☀️',
+      'Clouds': '☁️',
+      'Rain': '🌧️',
+      'Drizzle': '🌦️',
+      'Thunderstorm': '⛈️',
+      'Snow': '❄️',
+      'Mist': '🌫️',
+      'Fog': '🌫️',
+      'Haze': '🌫️'
+    };
+    return icons[condition] || '🌤️';
+  }
+
+  // Funkcja do pobierania nazwy dnia
+  function getDayName(date) {
+    const days = ['Niedziela', 'Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota'];
+    return days[date.getDay()];
+  }
+
+  // Funkcja do wyświetlania pogody w panelu
+  async function fetchWeatherAndShow(lat, lon, placeName = null, showPanel = true) {
+    try {
+      // Pobierz obie wartości równolegle dla szybkości
+      const [weatherRes, forecastRes] = await Promise.all([
+        fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric&lang=pl`),
+        fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric&lang=pl`)
+      ]);
+
+      if (!weatherRes.ok) throw new Error('weather fetch failed');
+      
+      const weather = await weatherRes.json();
+      const forecast = forecastRes.ok ? await forecastRes.json() : null;
+
+      // Aktualizuj nazwę lokalizacji (tylko jeśli podana)
+      if (placeName) {
+        document.getElementById('locationName').textContent = placeName;
+      } else if (weather.name) {
+        const title = `${weather.name}, ${weather.sys.country}`;
+        document.getElementById('locationName').textContent = title;
+      }
+      
+      // Aktualizuj współrzędne (tylko jeśli panel jest pokazywany pierwszy raz)
+      if (showPanel) {
+        document.getElementById('locationCoords').textContent = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`;
+      }
+
+      // Aktualizuj aktualną pogodę
+      document.getElementById('temperature').textContent = `${Math.round(weather.main.temp)}°`;
+      document.getElementById('weatherDescription').textContent = weather.weather[0].description;
+      document.getElementById('weatherIcon').textContent = getWeatherEmoji(weather.weather[0].main);
+
+      // Aktualizuj szczegóły
+      document.getElementById('feelsLike').textContent = `${Math.round(weather.main.feels_like)}°`;
+      document.getElementById('humidity').textContent = `${weather.main.humidity}%`;
+      document.getElementById('windSpeed').textContent = `${Math.round(weather.wind.speed)} m/s`;
+      document.getElementById('visibility').textContent = `${(weather.visibility / 1000).toFixed(1)} km`;
+      document.getElementById('pressure').textContent = `${weather.main.pressure} hPa`;
+      document.getElementById('precipitation').textContent = weather.rain ? `${weather.rain['1h'] || 0} mm` : '0 mm';
+
+      // Aktualizuj prognozę
+      if (forecast) {
+        displayForecast(forecast);
+      }
+
+      // Pokaż panel (tylko jeśli parametr showPanel = true)
+      if (showPanel) {
+        document.getElementById('weatherPanel').classList.add('active');
+      }
+
+    } catch (err) {
+      console.warn('Błąd pobierania pogody:', err);
+      // Pokaż panel z mock danymi
+      showMockWeather(lat, lon, placeName, showPanel);
+    }
+  }
+
+  // Funkcja do wyświetlania prognozy
+  function displayForecast(forecast) {
+    const forecastList = document.getElementById('forecastList');
+    forecastList.innerHTML = '';
+
+    // Grupuj prognozy po dniach
+    const dailyForecasts = {};
+    
+    forecast.list.forEach(item => {
+      const date = new Date(item.dt * 1000);
+      const dateKey = date.toDateString();
+      
+      if (!dailyForecasts[dateKey]) {
+        dailyForecasts[dateKey] = {
+          date: date,
+          temps: [],
+          conditions: item.weather[0].main,
+          icon: item.weather[0].main
+        };
+      }
+      
+      dailyForecasts[dateKey].temps.push(item.main.temp);
+    });
+
+    // Wyświetl pierwsze 7 dni
+    Object.values(dailyForecasts).slice(0, 7).forEach((day, index) => {
+      const dayName = index === 0 ? 'Dzisiaj' : 
+                     index === 1 ? 'Jutro' : 
+                     getDayName(day.date);
+      
+      const maxTemp = Math.round(Math.max(...day.temps));
+      const minTemp = Math.round(Math.min(...day.temps));
+      
+      const item = document.createElement('div');
+      item.className = 'forecast-item';
+      item.innerHTML = `
+        <div class="forecast-day">${dayName}</div>
+        <div class="forecast-icon">${getWeatherEmoji(day.icon)}</div>
+        <div class="forecast-temps">
+          <span class="temp-high">${maxTemp}°</span>
+          <span class="temp-low">${minTemp}°</span>
+        </div>
+      `;
+      
+      forecastList.appendChild(item);
+    });
+  }
+
+  // Mock dane jeśli API nie działa
+  function showMockWeather(lat, lon, placeName, showPanel = true) {
+    if (placeName) {
+      document.getElementById('locationName').textContent = placeName;
+    } else {
+      document.getElementById('locationName').textContent = 'Wybrana lokalizacja';
+    }
+    
+    if (showPanel) {
+      document.getElementById('locationCoords').textContent = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`;
+    }
+    
+    document.getElementById('temperature').textContent = `${15 + Math.floor(Math.random() * 15)}°`;
+    document.getElementById('weatherDescription').textContent = 'Słonecznie';
+    document.getElementById('weatherIcon').textContent = '☀️';
+    document.getElementById('feelsLike').textContent = `${15 + Math.floor(Math.random() * 10)}°`;
+    document.getElementById('humidity').textContent = `${60 + Math.floor(Math.random() * 30)}%`;
+    document.getElementById('windSpeed').textContent = `${5 + Math.floor(Math.random() * 15)} m/s`;
+    document.getElementById('visibility').textContent = '10 km';
+    document.getElementById('pressure').textContent = '1013 hPa';
+    document.getElementById('precipitation').textContent = '0 mm';
+
+    // Mock prognoza
+    const forecastList = document.getElementById('forecastList');
+    forecastList.innerHTML = '';
+    const days = ['Dzisiaj', 'Jutro', 'Środa', 'Czwartek', 'Piątek', 'Sobota', 'Niedziela'];
+    const conditions = ['☀️', '⛅', '☁️', '🌧️', '⛈️'];
+    
+    days.forEach(day => {
+      const item = document.createElement('div');
+      item.className = 'forecast-item';
+      item.innerHTML = `
+        <div class="forecast-day">${day}</div>
+        <div class="forecast-icon">${conditions[Math.floor(Math.random() * conditions.length)]}</div>
+        <div class="forecast-temps">
+          <span class="temp-high">${20 + Math.floor(Math.random() * 10)}°</span>
+          <span class="temp-low">${10 + Math.floor(Math.random() * 8)}°</span>
+        </div>
+      `;
+      forecastList.appendChild(item);
+    });
+
+    if (showPanel) {
+      document.getElementById('weatherPanel').classList.add('active');
+    }
+  }
+
+  // Zamykanie panelu pogody
+  document.getElementById('closePanel').addEventListener('click', function() {
+    document.getElementById('weatherPanel').classList.remove('active');
+  });
+
+  // click on globe -> place single marker, reverse geocode, fetch weather
+  earth.on('click', function(e) {
+    const lat = e.latlng.lat;
+    const lon = e.latlng.lng;
+    
+    // NATYCHMIASTOWE działania (synchroniczne):
+    // 1. Ustaw znacznik od razu
+    setMarker(lat, lon);
+    
+    // 2. Pokaż panel z podstawowymi danymi natychmiast i wskaźnikiem ładowania
+    document.getElementById('locationCoords').textContent = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`;
+    document.getElementById('locationName').innerHTML = 'Ładowanie lokalizacji<span class="mini-spinner"></span>';
+    document.getElementById('weatherDescription').innerHTML = 'Pobieranie danych<span class="mini-spinner"></span>';
+    document.getElementById('temperature').textContent = '--°';
+    document.getElementById('weatherIcon').textContent = '🌍';
+    
+    // Wyczyść szczegóły (pokaż że ładuje)
+    document.getElementById('feelsLike').textContent = '--°';
+    document.getElementById('humidity').textContent = '--%';
+    document.getElementById('windSpeed').textContent = '-- m/s';
+    document.getElementById('visibility').textContent = '-- km';
+    document.getElementById('pressure').textContent = '-- hPa';
+    document.getElementById('precipitation').textContent = '-- mm';
+    
+    // Wyczyść prognozę
+    const forecastList = document.getElementById('forecastList');
+    forecastList.innerHTML = '<div style="text-align:center;padding:20px;color:var(--star-blue);">Ładowanie prognozy<span class="mini-spinner"></span></div>';
+    
+    // Pokaż panel od razu
+    document.getElementById('weatherPanel').classList.add('active');
+    
+    // 3. Przesuń widok globusa do klikniętego miejsca
+    earth.setView([lat, lon], Math.max(earth.getZoom(), 4));
+    
+    // ASYNCHRONICZNE działania (w tle równolegle):
+    // Pobierz nazwę lokalizacji i pogodę równocześnie
+    Promise.all([
+      reverseGeocode(lat, lon),
+      fetchWeatherAndShow(lat, lon, null, false)  // false = nie pokazuj ponownie panelu
+    ]).then(([locationName]) => {
+      // Zaktualizuj nazwę lokalizacji gdy się pobierze
+      if (locationName) {
+        document.getElementById('locationName').textContent = locationName;
+      } else {
+        // Jeśli nie udało się pobrać nazwy, zostaw domyślną z API pogody
+        // (została już ustawiona w fetchWeatherAndShow)
+      }
+    }).catch(err => {
+      console.error('Błąd pobierania danych:', err);
+      document.getElementById('locationName').textContent = 'Nieznana lokalizacja';
+    });
+  });
+
+  // ----- Search / geocode -----
+  const input = document.getElementById('locationSearch');
+  const resultsBox = document.getElementById('searchResults');
+
+  async function geocode(query) {
+    const out = [];
+    try {
+      // OpenWeather geocoding
+      const ow = await fetch(`https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=5&appid=${API_KEY}`);
+      if (ow.ok) {
+        const jd = await ow.json();
+        jd.forEach(i => out.push({ name: `${i.name}${i.state?(', '+i.state):''}, ${i.country}`, lat: i.lat, lon: i.lon }));
+      }
+    } catch (e) { /* ignore */ }
+    if (out.length) return out;
+
+    try {
+      const nom = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&accept-language=pl`);
+      if (nom.ok) {
+        const jd = await nom.json();
+        jd.forEach(i => out.push({ name: i.display_name, lat: parseFloat(i.lat), lon: parseFloat(i.lon) }));
+      }
+    } catch (e) { /* ignore */ }
+
+    return out;
+  }
+
+  function showSearchResults(items) {
+    resultsBox.innerHTML = '';
+    if (!items || items.length === 0) {
+      resultsBox.innerHTML = '<div class="search-result-item">Nie znaleziono</div>';
+      resultsBox.classList.add('active');
+      return;
+    }
+    items.forEach(it => {
+      const div = document.createElement('div');
+      div.className = 'search-result-item';
+      div.innerHTML = `<div class="result-icon"><i class="fas fa-map-marker-alt"></i></div><div class="result-info"><h4>${it.name}</h4><p>${it.lat.toFixed(2)}°, ${it.lon.toFixed(2)}°</p></div>`;
+      div.addEventListener('click', () => {
+        resultsBox.classList.remove('active');
+        input.value = it.name;
+        
+        // NATYCHMIAST: pokaż znacznik i przesuń widok
+        setMarker(it.lat, it.lon);
+        earth.setView([it.lat, it.lon], 6);
+        
+        // Pokaż panel z podstawowymi danymi od razu
+        document.getElementById('locationName').innerHTML = it.name;
+        document.getElementById('locationCoords').textContent = `${it.lat.toFixed(4)}°, ${it.lon.toFixed(4)}°`;
+        document.getElementById('weatherDescription').innerHTML = 'Pobieranie danych<span class="mini-spinner"></span>';
+        document.getElementById('weatherPanel').classList.add('active');
+        
+        // W TLE: pobierz szczegółowe dane pogodowe
+        fetchWeatherAndShow(it.lat, it.lon, it.name, false);
+      });
+      resultsBox.appendChild(div);
+    });
+    resultsBox.classList.add('active');
+  }
+
+  let searchTimer = null;
+  input.addEventListener('input', e => {
+    const q = e.target.value.trim();
+    if (searchTimer) clearTimeout(searchTimer);
+    if (q.length < 2) { resultsBox.classList.remove('active'); return; }
+
+    // first: local suggestions from majorCities
+    const local = majorCities.filter(c => c.name.toLowerCase().includes(q.toLowerCase())).map(c => ({ name: c.name, lat: c.lat, lon: c.lon }));
+    if (local.length) {
+      showSearchResults(local);
+      return;
+    }
+
+    // otherwise remote geocoding (debounced)
+    searchTimer = setTimeout(async () => { const r = await geocode(q); showSearchResults(r); }, 300);
+  });
+
+  input.addEventListener('keydown', async e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const q = input.value.trim(); 
+      if (!q) return;
+      
+      const r = await geocode(q); 
+      showSearchResults(r);
+      
+      if (r.length) { 
+        // NATYCHMIAST: pokaż znacznik i przesuń widok
+        setMarker(r[0].lat, r[0].lon);
+        earth.setView([r[0].lat, r[0].lon], 6);
+        
+        // Pokaż panel z podstawowymi danymi od razu
+        document.getElementById('locationName').textContent = r[0].name;
+        document.getElementById('locationCoords').textContent = `${r[0].lat.toFixed(4)}°, ${r[0].lon.toFixed(4)}°`;
+        document.getElementById('weatherDescription').innerHTML = 'Pobieranie danych<span class="mini-spinner"></span>';
+        document.getElementById('weatherPanel').classList.add('active');
+        
+        // W TLE: pobierz szczegółowe dane pogodowe
+        fetchWeatherAndShow(r[0].lat, r[0].lon, r[0].name, false);
+      }
+    }
+  });
+
+  document.addEventListener('click', e => {
+    if (!document.getElementById('locationSearch').contains(e.target) && !resultsBox.contains(e.target)) resultsBox.classList.remove('active');
+  });
+
+  // Hide loading screen after initialization
+  window.addEventListener('load', function() {
+    setTimeout(() => {
+      const loadingScreen = document.getElementById('loadingScreen');
+      if (loadingScreen) {
+        loadingScreen.classList.add('hidden');
+      }
+    }, 800);
+  });
+
+  // Also hide after earth is ready
+  setTimeout(() => {
+    const loadingScreen = document.getElementById('loadingScreen');
+    if (loadingScreen) {
+      loadingScreen.classList.add('hidden');
+    }
+  }, 1500);
+
+  // ============================================
+  // FAVORITES FUNCTIONALITY
+  // ============================================
+
+  // Favorites storage using localStorage
+  const FavoritesManager = {
+    storageKey: 'terrascope_favorites',
+    
+    getFavorites() {
+      try {
+        const data = localStorage.getItem(this.storageKey);
+        return data ? JSON.parse(data) : [];
+      } catch (e) {
+        console.error('Error loading favorites:', e);
+        return [];
+      }
+    },
+    
+    saveFavorites(favorites) {
+      try {
+        localStorage.setItem(this.storageKey, JSON.stringify(favorites));
+        return true;
+      } catch (e) {
+        console.error('Error saving favorites:', e);
+        return false;
+      }
+    },
+    
+    addFavorite(location) {
+      const favorites = this.getFavorites();
+      
+      // Check if already exists
+      const exists = favorites.some(fav => 
+        Math.abs(fav.lat - location.lat) < 0.0001 && 
+        Math.abs(fav.lon - location.lon) < 0.0001
+      );
+      
+      if (exists) {
+        return false;
+      }
+      
+      favorites.push({
+        id: Date.now(),
+        name: location.name,
+        lat: location.lat,
+        lon: location.lon,
+        addedAt: new Date().toISOString()
+      });
+      
+      this.saveFavorites(favorites);
+      return true;
+    },
+    
+    removeFavorite(id) {
+      const favorites = this.getFavorites();
+      const filtered = favorites.filter(fav => fav.id !== id);
+      this.saveFavorites(filtered);
+      return true;
+    }
+  };
+
+  // Current selected location
+  let currentLocation = null;
+
+  // Toggle favorites panel
+  const favoritesToggle = document.getElementById('favoritesToggle');
+  const favoritesPanel = document.getElementById('favoritesPanel');
+  const closeFavorites = document.getElementById('closeFavorites');
+
+  if (favoritesToggle) {
+    favoritesToggle.addEventListener('click', function(e) {
+      e.stopPropagation();
+      favoritesPanel.classList.toggle('open');
+      favoritesToggle.classList.toggle('active');
+      
+      if (favoritesPanel.classList.contains('open')) {
+        renderFavoritesList();
+      }
+    });
+  }
+
+  if (closeFavorites) {
+    closeFavorites.addEventListener('click', function(e) {
+      e.stopPropagation();
+      favoritesPanel.classList.remove('open');
+      favoritesToggle.classList.remove('active');
+    });
+  }
+
+  // Close favorites when clicking outside
+  document.addEventListener('click', function(e) {
+    if (favoritesPanel && favoritesToggle) {
+      if (!favoritesPanel.contains(e.target) && !favoritesToggle.contains(e.target)) {
+        favoritesPanel.classList.remove('open');
+        favoritesToggle.classList.remove('active');
+      }
+    }
+  });
+
+  // Render favorites list
+  function renderFavoritesList() {
+    const favoritesList = document.getElementById('favoritesList');
+    if (!favoritesList) return;
+    
+    const favorites = FavoritesManager.getFavorites();
+    
+    if (favorites.length === 0) {
+      favoritesList.innerHTML = '<div class="favorites-empty">Brak ulubionych lokalizacji. Kliknij na globus i dodaj pierwszą!</div>';
+      return;
+    }
+    
+    favoritesList.innerHTML = '';
+    
+    favorites.forEach(fav => {
+      const item = document.createElement('div');
+      item.className = 'favorite-item';
+      item.innerHTML = `
+        <div class="result-icon"><i class="fa-solid fa-location-dot"></i></div>
+        <div class="favorite-meta">
+          <div class="favorite-name">${fav.name}</div>
+          <div class="favorite-coords">${fav.lat.toFixed(4)}°, ${fav.lon.toFixed(4)}°</div>
+        </div>
+        <div class="favorite-actions">
+          <button class="fav-btn" data-action="goto" title="Pokaż na globusie">
+            <i class="fas fa-map-marked-alt"></i>
+          </button>
+          <button class="fav-btn" data-action="weather" title="Pokaż pogodę">
+            <i class="fas fa-cloud-sun"></i>
+          </button>
+          <button class="fav-btn" data-action="remove" title="Usuń">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      `;
+      
+      // Click on item - go to location
+      item.addEventListener('click', function(e) {
+        if (e.target.closest('.fav-btn')) return;
+        goToFavorite(fav);
+      });
+      
+      // Action buttons
+      const gotoBtn = item.querySelector('[data-action="goto"]');
+      const weatherBtn = item.querySelector('[data-action="weather"]');
+      const removeBtn = item.querySelector('[data-action="remove"]');
+      
+      if (gotoBtn) {
+        gotoBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          goToFavorite(fav);
+        });
+      }
+      
+      if (weatherBtn) {
+        weatherBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          goToFavorite(fav, true);
+        });
+      }
+      
+      if (removeBtn) {
+        removeBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          if (confirm(`Usunąć "${fav.name}" z ulubionych?`)) {
+            FavoritesManager.removeFavorite(fav.id);
+            renderFavoritesList();
+          }
+        });
+      }
+      
+      favoritesList.appendChild(item);
+    });
+  }
+
+  // Go to favorite location
+  function goToFavorite(fav, showWeather = false) {
+    favoritesPanel.classList.remove('open');
+    favoritesToggle.classList.remove('active');
+    
+    // Set marker and move view
+    setMarker(fav.lat, fav.lon);
+    earth.setView([fav.lat, fav.lon], 6);
+    
+    // Store current location
+    currentLocation = {
+      name: fav.name,
+      lat: fav.lat,
+      lon: fav.lon
+    };
+    
+    // Show weather if requested
+    if (showWeather) {
+      document.getElementById('locationName').textContent = fav.name;
+      document.getElementById('locationCoords').textContent = `${fav.lat.toFixed(4)}°, ${fav.lon.toFixed(4)}°`;
+      fetchWeatherAndShow(fav.lat, fav.lon, fav.name, true);
+    }
+  }
+
+  // Add to favorites button
+  const addToFavoritesBtn = document.getElementById('addToFavoritesBtn');
+  
+  if (addToFavoritesBtn) {
+    addToFavoritesBtn.addEventListener('click', function() {
+      if (!currentLocation) {
+        alert('Najpierw wybierz lokalizację na globusie');
+        return;
+      }
+      
+      const added = FavoritesManager.addFavorite(currentLocation);
+      
+      if (added) {
+        // Update button
+        addToFavoritesBtn.innerHTML = '<i class="fa-solid fa-star"></i><span>Dodano do ulubionych!</span>';
+        addToFavoritesBtn.style.background = 'rgba(236, 72, 153, 0.2)';
+        addToFavoritesBtn.style.borderColor = 'var(--nebula-pink)';
+        
+        // Reset after 2 seconds
+        setTimeout(() => {
+          addToFavoritesBtn.innerHTML = '<i class="fa-regular fa-star"></i><span>Dodaj do ulubionych</span>';
+          addToFavoritesBtn.style.background = '';
+          addToFavoritesBtn.style.borderColor = '';
+        }, 2000);
+      } else {
+        alert('Ta lokalizacja jest już w ulubionych!');
+      }
+    });
+  }
+
+  // Update current location when clicking on globe (integrate with existing code)
+  const originalEarthClickHandler = earth.on;
+  earth.on('click', function(e) {
+    const lat = e.latlng.lat;
+    const lon = e.latlng.lng;
+    
+    // Store current location
+    currentLocation = {
+      name: `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`,
+      lat: lat,
+      lon: lon
+    };
+    
+    // Show add to favorites button
+    if (addToFavoritesBtn) {
+      addToFavoritesBtn.style.display = 'flex';
+      addToFavoritesBtn.innerHTML = '<i class="fa-regular fa-star"></i><span>Dodaj do ulubionych</span>';
+    }
+    
+    // Continue with original functionality...
+    setMarker(lat, lon);
+    
+    document.getElementById('locationCoords').textContent = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`;
+    document.getElementById('locationName').innerHTML = 'Ładowanie lokalizacji<span class="mini-spinner"></span>';
+    document.getElementById('weatherDescription').innerHTML = 'Pobieranie danych<span class="mini-spinner"></span>';
+    document.getElementById('temperature').textContent = '--°';
+    document.getElementById('weatherIcon').textContent = '🌍';
+    
+    document.getElementById('feelsLike').textContent = '--°';
+    document.getElementById('humidity').textContent = '--%';
+    document.getElementById('windSpeed').textContent = '-- m/s';
+    document.getElementById('visibility').textContent = '-- km';
+    document.getElementById('pressure').textContent = '-- hPa';
+    document.getElementById('precipitation').textContent = '-- mm';
+    
+    const forecastList = document.getElementById('forecastList');
+    forecastList.innerHTML = '<div style="text-align:center;padding:20px;color:var(--star-blue);">Ładowanie prognozy<span class="mini-spinner"></span></div>';
+    
+    document.getElementById('weatherPanel').classList.add('active');
+    
+    earth.setView([lat, lon], Math.max(earth.getZoom(), 4));
+    
+    Promise.all([
+      reverseGeocode(lat, lon),
+      fetchWeatherAndShow(lat, lon, null, false)
+    ]).then(([locationName]) => {
+      if (locationName) {
+        document.getElementById('locationName').textContent = locationName;
+        currentLocation.name = locationName;
+      }
+    }).catch(err => {
+      console.error('Błąd pobierania danych:', err);
+      document.getElementById('locationName').textContent = 'Nieznana lokalizacja';
+    });
+  });
+
+</script>
+
+</body>
+</html>

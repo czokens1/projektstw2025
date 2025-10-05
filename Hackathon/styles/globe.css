@@ -1,0 +1,498 @@
+/* Globe / Map specific styles - ensures the map has a usable height so 100% doesn't collapse */
+.globe-container {
+    position: relative;
+    width: 100%;
+    /* Make the globe area fill the viewport minus header + some padding. Adjust if your header size changes. */
+    height: calc(100vh - 160px);
+    min-height: 420px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: transparent !important;
+    box-shadow: 0 8px 30px rgba(2,6,23,0.6);
+}
+
+/* The map element should always fill the container */
+#globe-canvas {
+    width: 100%;
+    height: 100%;
+    min-height: 420px;
+    display: block;
+}
+
+/* Ensure Leaflet's internal container also stretches */
+.leaflet-container {
+    width: 100% !important;
+    height: 100% !important; 
+    background: transparent !important;
+}
+
+/* Make sure container background matches page background */
+.globe-container,
+#globe-canvas {
+    background: transparent !important;
+}
+
+/* Location info panel that appears on top of the map */
+.location-info {
+    position: absolute; /* anchored inside .globe-container */
+    bottom: 10px;
+    left: 10px;
+    z-index: 950; /* keep below header (header z-index:1000) so it won't cover page header */
+    /* fluid width: up to 680px but shrink on narrow viewports */
+    width: min(92vw, 680px);
+    max-width: 680px;
+    min-width: 280px;
+    box-sizing: border-box;
+    pointer-events: auto;
+    transition: transform 0.14s ease, opacity 0.14s ease;
+    display: block;
+}
+
+/* Strong overrides to ensure no white panel is shown */
+#globe-tab .location-info,
+.location-info,
+.location-info.show,
+.location-info.comprehensive,
+.location-info .info-header,
+.location-info .location-details,
+.location-info .location-comprehensive-details {
+    background: linear-gradient(180deg, rgba(8,12,20,0.96), rgba(14,20,34,0.94)) !important;
+    color: #e6eef8 !important;
+    border: 1px solid rgba(99,102,241,0.06) !important;
+}
+
+.location-info .info-header {
+    background: linear-gradient(180deg, rgba(8,12,20,0.96), rgba(14,20,34,0.94));
+    border: 1px solid rgba(99,102,241,0.06);
+    padding: 10px 14px;
+    border-radius: 12px;
+    color: #e6eef8;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 10px 30px rgba(2,6,23,0.6);
+    display: flex; /* horizontal layout */
+    align-items: center;
+    gap: 8px;
+}
+
+.location-info .location-details,
+.location-info .location-comprehensive-details {
+    margin: 0;
+    background: transparent; /* integrated into header area for horizontal compact look */
+    border: none;
+    padding: 0;
+    border-radius: 0;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.detail-grid {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap; /* allow cards to wrap to next line */
+}
+
+.detail-card {
+    background: linear-gradient(180deg, rgba(14,23,34,0.5), rgba(18,28,44,0.45));
+    border: 1px solid rgba(99,102,241,0.04);
+    padding: 6px 8px;
+    border-radius: 8px;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    min-width: 72px;
+}
+
+.detail-icon i {
+    font-size: 15px;
+    color: #93c5fd;
+}
+
+.detail-content label {
+    display: block;
+    font-size: 0.68rem;
+    color: #bcd7ff;
+}
+
+.detail-content .detail-value {
+    font-weight: 700;
+    color: #e6eef8;
+    display: block;
+    font-size: 0.86rem;
+}
+
+.location-info.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Small responsive tweak so the map remains usable on short screens */
+@media (max-height: 700px) {
+    .globe-container {
+        height: calc(100vh - 120px);
+        min-height: 360px;
+    }
+}
+
+@media (max-width: 768px) {
+    .globe-container {
+        height: calc(100vh - 200px);
+        min-height: 320px;
+    }
+
+    .location-info {
+        left: 10px;
+        right: 10px;
+        max-width: none;
+    }
+
+    /* Stack location info vertically on small screens */
+    .location-info .info-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .detail-grid {
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+}
+
+/* Dark theme overrides for Leaflet controls and popups to match site */
+.leaflet-control-container .leaflet-control,
+.leaflet-control,
+.leaflet-control a,
+.leaflet-control button {
+    background: rgba(14, 23, 34, 0.85) !important;
+    color: #e6eef8 !important;
+    border: 1px solid rgba(99,102,241,0.10) !important;
+    box-shadow: 0 6px 18px rgba(2,6,23,0.6) !important;
+    backdrop-filter: blur(6px) !important;
+}
+
+.leaflet-bar a,
+.leaflet-bar a:hover,
+.leaflet-bar a:focus {
+    background: rgba(14,23,34,0.6) !important;
+    color: #dbeafe !important;
+    border-radius: 8px !important;
+    border: 1px solid rgba(99,102,241,0.04) !important;
+}
+
+.leaflet-control-layers,
+.leaflet-control-layers-expanded {
+    background: linear-gradient(180deg, rgba(8,12,20,0.9), rgba(20,28,44,0.9)) !important;
+    color: #e6eef8 !important;
+    border: 1px solid rgba(99,102,241,0.08) !important;
+    min-width: 220px !important;
+    z-index: 400 !important; /* Poniżej nagłówka (header ma z-index: 1000) */
+}
+
+/* Kontrolki Leaflet - ustawienie z-index poniżej nagłówka */
+.leaflet-top, .leaflet-bottom {
+    z-index: 400 !important;
+}
+
+/* Górne kontrolki - dodaj margines od nagłówka */
+.leaflet-top {
+    top: 90px !important; /* Odsunięcie od nagłówka (header ma 80px wysokości + 10px margines) */
+}
+
+.leaflet-control-container {
+    z-index: 400 !important;
+}
+
+/* Wszystkie kontrolki Leaflet */
+.leaflet-control {
+    z-index: 400 !important;
+}
+
+.leaflet-control-layers-list label {
+    color: #cfe8ff !important;
+}
+
+.leaflet-control-layers-list input[type="checkbox"],
+.leaflet-control-layers-list input[type="radio"] {
+    accent-color: #6366f1;
+}
+
+.leaflet-popup-content-wrapper {
+    background: linear-gradient(180deg, #0f172a, #1e293b) !important;
+    color: #e6eef8 !important;
+    border-radius: 8px !important;
+    border: 1px solid rgba(99,102,241,0.08) !important;
+    box-shadow: 0 10px 30px rgba(2,6,23,0.6) !important;
+}
+
+.leaflet-popup-content a {
+    color: #93c5fd !important;
+}
+
+.leaflet-popup-tip {
+    background: rgba(14,23,34,0.9) !important;
+    display: block !important;
+}
+
+.leaflet-container .leaflet-control-attribution {
+    /* Hidden visually: if you use OpenStreetMap/other tiles in production,
+       you must keep proper attribution per the provider's license. Hiding
+       this for demos is possible, but ensure compliance for public use. */
+    display: none !important;
+    color: rgba(230,238,248,0.7) !important;
+}
+
+/* Make marker popups and custom marker elements match theme */
+.weather-marker-content,
+.custom-location-marker {
+    color: #0b1220 !important;
+}
+
+/* Small accessibility tweak for focus outlines */
+.leaflet-control a:focus,
+.leaflet-control button:focus {
+    outline: 2px solid rgba(99,102,241,0.25) !important;
+    outline-offset: 2px !important;
+}
+
+/* Location panel header row and close button */
+.location-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.location-title h3 {
+    margin: 0 0 4px 0;
+    font-size: 1.05rem;
+    color: #e6eef8;
+}
+
+.location-title .coords {
+    margin: 0;
+    font-size: 0.82rem;
+    color: #bcd7ff;
+}
+
+.location-close-btn {
+    background: rgba(14,23,34,0.6);
+    color: #e6eef8;
+    border: 1px solid rgba(99,102,241,0.06);
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    font-size: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.location-close-btn:hover {
+    background: rgba(18,28,44,0.7);
+}
+
+/* Action buttons in the location panel */
+.location-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(99,102,241,0.08);
+    background: linear-gradient(180deg, rgba(14,23,34,0.55), rgba(18,28,44,0.5));
+    color: #e6eef8;
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+    font-weight: 600;
+    font-size: 0.92rem;
+}
+
+.location-action-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 30px rgba(2,6,23,0.6);
+}
+
+.location-action-btn .action-icon {
+    display: inline-flex;
+    width: 18px;
+    height: 18px;
+    align-items: center;
+    justify-content: center;
+    color: #a5b8ff;
+}
+
+.action-grid {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+}
+
+/* Make action buttons more flexible so they don't overflow */
+.location-action-btn {
+    flex: 0 1 auto;
+}
+
+@media (max-width: 680px) {
+    /* On narrow screens, make the location-info centered and full-width-friendly */
+    .location-info {
+        left: 50%;
+        transform: translateX(-50%);
+        width: calc(100% - 24px);
+        max-width: calc(100% - 24px);
+    }
+
+    /* Stack header vertically and reduce gaps */
+    .location-info .info-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+    }
+
+    .detail-grid {
+        gap: 6px;
+        justify-content: flex-start;
+    }
+
+    /* Make buttons fill half width on small screens, or full width if too narrow */
+    .action-grid {
+        gap: 8px;
+    }
+
+    .location-action-btn {
+        flex: 1 1 calc(50% - 8px);
+        min-width: 140px;
+    }
+
+    /* If still narrow, buttons become full width */
+    @media (max-width: 420px) {
+        .location-action-btn {
+            flex: 1 1 100%;
+            min-width: 0;
+        }
+    }
+}
+
+/* Force dark theme for the location details modal (overrides other CSS that sets white background) */
+.location-details-modal .modal-content,
+.location-modal-content {
+    background: linear-gradient(180deg, rgba(8,12,20,0.98), rgba(14,20,34,0.96)) !important;
+    color: #e6eef8 !important;
+    border: 1px solid rgba(99,102,241,0.06) !important;
+    box-shadow: 0 20px 60px rgba(2,6,23,0.7) !important;
+}
+
+.location-details-modal .modal-header,
+.location-modal-content .modal-header {
+    background: linear-gradient(180deg, rgba(10,14,22,0.95), rgba(14,20,34,0.94)) !important;
+    border-bottom: 1px solid rgba(99,102,241,0.05) !important;
+}
+
+.location-details-modal .modal-body,
+.location-modal-content .modal-body {
+    background: transparent !important;
+    color: #cfe8ff !important;
+}
+
+/* Overlay darker so modal doesn't appear like a white floating card */
+.location-details-modal.modal {
+    background: rgba(0,0,0,0.6) !important;
+}
+
+/* Ensure close button in modal is styled for dark theme */
+.location-details-modal .close-btn,
+.location-modal-content .close-btn {
+    background: rgba(14,23,34,0.6) !important;
+    color: #e6eef8 !important;
+    border: 1px solid rgba(99,102,241,0.06) !important;
+}
+
+/* Custom map layers control positioned bottom-left of the globe */
+.map-layers-control {
+    position: absolute;
+    right: 12px;
+    bottom: 12px; /* right-bottom corner */
+    z-index: 900; /* above Leaflet controls (400) but below header (1000) */
+    background: linear-gradient(180deg, rgba(8,12,20,0.96), rgba(14,20,34,0.94));
+    color: #e6eef8;
+    border: 1px solid rgba(99,102,241,0.06);
+    padding: 10px 14px;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(2,6,23,0.6);
+    min-width: 220px; /* wider */
+    width: min(34vw, 360px); /* responsive width preference */
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+}
+.map-layers-control .map-layers-header {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #cfe8ff;
+    margin-bottom: 6px;
+}
+.map-layer-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    margin-bottom: 4px;
+}
+.map-layer-item label {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #dbeafe;
+}
+.map-layer-item input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #6366f1; /* purple accent consistent with theme */
+    appearance: auto;
+}
+
+@media (max-width: 680px) {
+    .map-layers-control {
+        right: 8px;
+        bottom: 8px;
+        min-width: 160px;
+        width: calc(100% - 32px);
+        padding: 8px 10px;
+    }
+}
+
+/* Override light hover rules from weather.css to match dark theme */
+.forecast-day:hover,
+.probability-chart:hover,
+.sun-moon-item:hover,
+.hourly-item:hover,
+.export-checkbox:hover,
+.export-format-btn:hover,
+.forecast-day:hover .detail-item,
+.sun-moon-item:hover .detail-item {
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)) !important;
+    box-shadow: 0 6px 20px rgba(2,6,23,0.6) !important;
+    transform: none !important;
+    border-color: rgba(99,102,241,0.06) !important;
+    color: #e6eef8 !important;
+}
+
+/* Map layer buttons and other controls that used white backgrounds */
+.map-layer-btn,
+.export-format-btn,
+.export-checkbox {
+    background: linear-gradient(180deg, rgba(14,23,34,0.55), rgba(18,28,44,0.5)) !important;
+    color: #e6eef8 !important;
+    border: 1px solid rgba(99,102,241,0.06) !important;
+}
+
+.map-layer-btn.active {
+    background: linear-gradient(135deg, rgba(79,70,229,0.9), rgba(99,102,241,0.85)) !important;
+    color: #fff !important;
+}
+
+/* Make the weather-content loading overlay darker so it doesn't flash white */
+.weather-content.loading:after {
+    background: rgba(2,6,23,0.6) !important;
+}
